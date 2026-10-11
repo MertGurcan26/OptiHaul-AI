@@ -325,8 +325,19 @@ else:
             else:
                 st_folium(folium.Map(location=[41.0, 28.0], zoom_start=5), width=700, height=450, key="map_empty", returned_objects=[])
 
-    with tab3:
+   with tab3:
         st.subheader("Veritabanı İzleme ve Log Kayıtları")
+        
+        st.markdown("### 🏢 Kayıtlı Şirketler (Müşteri Bilgileri)")
+        df_users = get_users_logs()
+        if not df_users.empty:
+            st.dataframe(df_users, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sistemde henüz kayıtlı bir şirket bulunmuyor.")
+            
+        st.markdown("---")
+        
+        st.markdown("### 🚛 Gerçekleşen Operasyonlar")
         df_trips = get_trip_logs()
         if not df_trips.empty:
             st.dataframe(
