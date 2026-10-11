@@ -331,7 +331,7 @@ else:
         with col_right:
             st.subheader("Canlı Harita ve Karar Çıktısı")
             if st.session_state.route_info and st.session_state.route_info != "error":
-                if "ONAYLANDI" in st.session_state.route_info: st.success(st.session_state.route_info)
+                if "ONAYLANDI" in st.session_state.route_info: st.markdown(st.session_state.route_info, unsafe_allow_html=True)
                 else: st.error(st.session_state.route_info)
                     
             if st.session_state.route_map is not None:
