@@ -86,7 +86,11 @@ def get_trip_logs():
     df = pd.read_sql_query("SELECT date as Tarih, plate_number as Plaka, start_point as Kalkış, end_point as Varış, distance_km as 'Mesafe (km)', cost_euro as 'Maliyet (€)', status as Durum FROM trips ORDER BY date DESC", conn)
     conn.close()
     return df
-
+def get_users_logs():
+    conn = sqlite3.connect('fleet_data.db')
+    df = pd.read_sql_query("SELECT company_name as Şirket, email as 'E-Posta', phone as Telefon FROM users", conn)
+    conn.close()
+    return df
 # --- 3. HARİTA VE OTOMATİK VERİ ÇEKME MOTORU ---
 def get_coordinates(city_name):
     geolocator = Nominatim(user_agent="optihaul_ai_v3")
