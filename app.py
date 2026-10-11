@@ -286,12 +286,19 @@ else:
                                 total_fuel = (dist / 100) * fuel_per_100km
                                 total_cost = total_fuel * fuel_price
                                 
-                                st.session_state.route_info = f"""✅ **OPERASYON ONAYLANDI**
-                                * **Toplam Mesafe:** {dist:.1f} km
-                                * **Net Sürüş Süresi:** {dur_hours:.1f} saat
-                                * **Zorunlu Molalar:** {required_breaks} kez (Haritada Kahve İkonu İle İşaretlendi)
-                                * **Tahmini Varış (ETA):** {arrival_datetime.strftime('%d.%m.%Y - %H:%M')}
-                                * **Yakıt Maliyeti:** {total_cost:.2f} €"""
+                               st.session_state.route_info = f"""
+<div style="background-color: #f8f9fa; padding: 25px; border-radius: 10px; border-left: 6px solid #28a745;">
+    <h3 style="color: #28a745; margin-top: 0; margin-bottom: 20px;">{t['route_ok']}</h3>
+    
+    <span style="color: #0056b3; font-size: 18px;"><b>🗺️ Mesafe / Dist:</b> {dist:.1f} km</span>
+    <br><br><br> <!-- İŞTE BURASI O İSTEDİĞİN GÖZ YORMAYAN BÜYÜK BOŞLUK -->
+    
+    <span style="color: #fd7e14; font-size: 18px;"><b>💶 Maliyet / Cost:</b> {total_cost:.2f} €</span>
+    <br><br><br> <!-- YİNE BÜYÜK BİR BOŞLUK -->
+    
+    <span style="color: #6f42c1; font-size: 18px;"><b>⏱️ Zorunlu Mola / Breaks:</b> {required_breaks}</span>
+</div>
+"""
                                 
                                 save_trip(selected_plate, start_city, end_city, dist, round(total_cost, 2), "ONAYLANDI")
                                 
