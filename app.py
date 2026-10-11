@@ -9,14 +9,89 @@ import pandas as pd
 import math
 import time
 
-st.set_page_config(page_title="OptiHaul AI - Kurumsal Lojistik", layout="wide")
+st.set_page_config(page_title="OptiHaul AI - Logistics", layout="wide")
+
+# --- DİL SÖZLÜĞÜ (TRANSLATIONS) ---
+texts = {
+    "TR": {
+        "title": "🚛 OptiHaul AI",
+        "subtitle": "Kurumsal Lojistik ve Rota Optimizasyon Paneli",
+        "login_tab": "🔐 Sisteme Giriş Yap",
+        "reg_tab": "📝 Yeni Şirket Kaydı",
+        "email": "Kurumsal E-Posta:",
+        "pass": "Şifre:",
+        "login_btn": "Giriş Yap",
+        "err_login": "E-posta veya şifre hatalı!",
+        "req_fields": "Lütfen tüm alanları doldurun.",
+        "reg_info": "Sistemi kullanmak için firmanızı kaydedin.",
+        "company": "Şirket / Firma Adı:",
+        "phone": "İletişim Numarası:",
+        "reg_btn": "Kayıt Ol",
+        "reg_success": "✅ Kayıt başarılı! Giriş yapabilirsiniz.",
+        "reg_err": "❌ Bu e-posta adresi sistemde zaten kayıtlı!",
+        "sidebar_title": "👨‍💼 Yönetici Paneli",
+        "active_comp": "Aktif Şirket:\n**{}**",
+        "logout": "🚪 Çıkış Yap",
+        "tab1": "🚚 Araç Kayıt Paneli",
+        "tab2": "🗺️ Operasyon Merkezi",
+        "tab3": "📊 Veritabanı ve Log İzleme",
+        "tab4": "⚠️ GİZLİ SİSTEM YÖNETİCİSİ",
+        "plate": "Araç Plakası:",
+        "tonnage": "Tonaj Kapasitesi (Ton):",
+        "height": "Araç Yüksekliği (Metre):",
+        "save_btn": "Sisteme Kaydet",
+        "start_city": "Kalkış Şehri:",
+        "end_city": "Varış Şehri:",
+        "calc_btn": "Canlı Verileri Çek ve Analiz Et 🚀",
+        "fuel_price": "Mazot Fiyatı (Birim/Litre):",
+        "no_vehicle": "Lütfen 'Araç Kayıt' sekmesinden araç ekleyin.",
+        "route_ok": "✅ OPERASYON ONAYLANDI",
+        "route_err": "🚨 OPERASYON REDDEDİLDİ!"
+    },
+    "EN": {
+        "title": "🚛 OptiHaul AI",
+        "subtitle": "Corporate Logistics & Route Optimization Panel",
+        "login_tab": "🔐 Login to System",
+        "reg_tab": "📝 New Company Registration",
+        "email": "Corporate E-Mail:",
+        "pass": "Password:",
+        "login_btn": "Login",
+        "err_login": "Invalid email or password!",
+        "req_fields": "Please fill in all fields.",
+        "reg_info": "Register your company to use the system.",
+        "company": "Company Name:",
+        "phone": "Contact Number:",
+        "reg_btn": "Register",
+        "reg_success": "✅ Registration successful! You can now login.",
+        "reg_err": "❌ This email is already registered!",
+        "sidebar_title": "👨‍💼 Admin Panel",
+        "active_comp": "Active Company:\n**{}**",
+        "logout": "🚪 Logout",
+        "tab1": "🚚 Vehicle Registration",
+        "tab2": "🗺️ Operations Center",
+        "tab3": "📊 Database & Logs",
+        "tab4": "⚠️ SECRET SYSTEM ADMIN",
+        "plate": "License Plate:",
+        "tonnage": "Tonnage Capacity (Tons):",
+        "height": "Vehicle Height (Meters):",
+        "save_btn": "Save to System",
+        "start_city": "Departure City:",
+        "end_city": "Arrival City:",
+        "calc_btn": "Fetch Live Data & Analyze 🚀",
+        "fuel_price": "Fuel Price (Unit/Liter):",
+        "no_vehicle": "Please add a vehicle from the 'Vehicle Registration' tab.",
+        "route_ok": "✅ OPERATION APPROVED",
+        "route_err": "🚨 OPERATION DENIED!"
+    }
+}
 
 # --- 1. GÜVENLİK VE HAFIZA ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_user" not in st.session_state: st.session_state.current_user = ""
-if "current_email" not in st.session_state: st.session_state.current_email = "" # YENİ: Hangi maille girildiğini tutuyoruz
+if "current_email" not in st.session_state: st.session_state.current_email = ""
 if "route_map" not in st.session_state: st.session_state.route_map = None
 if "route_info" not in st.session_state: st.session_state.route_info = ""
+if "lang" not in st.session_state: st.session_state.lang = "TR"
 
 def logout():
     st.session_state.logged_in = False
@@ -25,6 +100,12 @@ def logout():
     st.session_state.route_map = None
     st.session_state.route_info = ""
 
+def change_lang():
+    if st.session_state.lang == "TR": st.session_state.lang = "EN"
+    else: st.session_state.lang = "TR"
+
+t = texts[st.session_state.lang]
+
 # --- 2. VERİTABANI İŞLEMLERİ ---
 def init_db():
     conn = sqlite3.connect('fleet_data.db')
@@ -32,13 +113,9 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT NOT NULL, company_name TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS vehicles (id INTEGER PRIMARY KEY AUTOINCREMENT, plate_number TEXT UNIQUE NOT NULL, tonnage REAL NOT NULL, height REAL NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS trips (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, plate_number TEXT, start_point TEXT, end_point TEXT, distance_km REAL, cost_euro REAL, status TEXT)''')
-    
-    # YENİ: Süper Admin Hesabını Otomatik Oluştur (Eğer yoksa)
     try:
         cursor.execute("INSERT INTO users (email, password, phone, company_name) VALUES (?, ?, ?, ?)", ("mert@admin.com", "Mert1234", "05550000000", "SİSTEM YÖNETİCİSİ (MERT)"))
-    except sqlite3.IntegrityError:
-        pass # Zaten varsa hata verme, geç
-        
+    except sqlite3.IntegrityError: pass
     conn.commit()
     conn.close()
 
@@ -92,20 +169,19 @@ def save_trip(plate, start, end, dist, cost, status):
 
 def get_trip_logs():
     conn = sqlite3.connect('fleet_data.db')
-    df = pd.read_sql_query("SELECT date as Tarih, plate_number as Plaka, start_point as Kalkış, end_point as Varış, distance_km as 'Mesafe (km)', cost_euro as 'Maliyet (€)', status as Durum FROM trips ORDER BY date DESC", conn)
+    df = pd.read_sql_query("SELECT date, plate_number, start_point, end_point, distance_km, cost_euro, status FROM trips ORDER BY date DESC", conn)
     conn.close()
     return df
 
-# SADECE ADMİNİN GÖRECEĞİ FULL LİSTE (Şifreler Dahil)
 def get_all_users_for_admin():
     conn = sqlite3.connect('fleet_data.db')
-    df = pd.read_sql_query("SELECT company_name as Şirket, email as 'E-Posta', phone as Telefon, password as 'Gizli Şifre' FROM users", conn)
+    df = pd.read_sql_query("SELECT company_name, email, phone, password FROM users", conn)
     conn.close()
     return df
 
 # --- 3. HARİTA VE OTOMATİK VERİ ÇEKME MOTORU ---
 def get_coordinates(city_name):
-    geolocator = Nominatim(user_agent="optihaul_ai_v4")
+    geolocator = Nominatim(user_agent="optihaul_ai_v5")
     try:
         location = geolocator.geocode(city_name)
         if location and hasattr(location, 'latitude') and hasattr(location, 'longitude'):
@@ -131,235 +207,186 @@ def fetch_highway_constraints(start_city, end_city):
     is_risky = any(city in start_lower or city in end_lower for city in risky_cities)
     
     if is_risky:
-        return {"max_tonnage": 25.0, "max_height": 3.8, "status": "Kısıtlı Bölge (Dar Yollar / Düşük Kapasiteli Köprüler)"}
+        return {"max_tonnage": 25.0, "max_height": 3.8, "status": "Kısıtlı Bölge / Restricted Area"}
     else:
-        return {"max_tonnage": 42.0, "max_height": 4.5, "status": "Standart Otoyol"}
+        return {"max_tonnage": 42.0, "max_height": 4.5, "status": "Standart Otoyol / Standard Highway"}
 
 init_db()
 
 # ==========================================
 # ANA UYGULAMA AKIŞI
 # ==========================================
+col_lang1, col_lang2 = st.columns([9, 1])
+with col_lang2:
+    st.button("🇹🇷 TR / 🇬🇧 EN", on_click=change_lang)
+
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center; color: #1e3a8a;'>🚛 OptiHaul AI</h1>", unsafe_allow_html=True)
-    st.markdown("<h4 style='text-align: center; color: gray;'>Kurumsal Lojistik ve Rota Optimizasyon Paneli</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center; color: #1e3a8a;'>{t['title']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='text-align: center; color: gray;'>{t['subtitle']}</h4>", unsafe_allow_html=True)
     st.write("")
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        tab_login, tab_register = st.tabs(["🔐 Sisteme Giriş Yap", "📝 Yeni Şirket Kaydı"])
+        tab_login, tab_register = st.tabs([t['login_tab'], t['reg_tab']])
         
         with tab_login:
             with st.form("login_form"):
-                login_email = st.text_input("Kurumsal E-Posta:")
-                login_password = st.text_input("Şifre:", type="password")
-                submit_login = st.form_submit_button("Giriş Yap", use_container_width=True, type="primary")
+                login_email = st.text_input(t['email'])
+                login_password = st.text_input(t['pass'], type="password")
+                submit_login = st.form_submit_button(t['login_btn'], use_container_width=True, type="primary")
                 if submit_login:
                     if login_email and login_password:
                         company = verify_user(login_email, login_password)
                         if company:
                             st.session_state.logged_in = True
                             st.session_state.current_user = company
-                            st.session_state.current_email = login_email # Sisteme giren maili hafızaya al
+                            st.session_state.current_email = login_email 
                             st.rerun()
-                        else: st.error("E-posta veya şifre hatalı!")
-                    else: st.warning("Lütfen tüm alanları doldurun.")
+                        else: st.error(t['err_login'])
+                    else: st.warning(t['req_fields'])
                         
         with tab_register:
             with st.form("register_form"):
-                st.info("Sistemi kullanmak için firmanızı kaydedin.")
-                reg_company = st.text_input("Şirket / Firma Adı:")
-                reg_phone = st.text_input("İletişim Numarası (Örn: 05551234567):")
-                reg_email = st.text_input("E-Posta Adresi:")
-                reg_password = st.text_input("Hesap Şifresi:", type="password")
-                submit_register = st.form_submit_button("Kayıt Ol", use_container_width=True)
+                st.info(t['reg_info'])
+                reg_company = st.text_input(t['company'])
+                reg_phone = st.text_input(t['phone'])
+                reg_email = st.text_input(t['email'])
+                reg_password = st.text_input(t['pass'], type="password")
+                submit_register = st.form_submit_button(t['reg_btn'], use_container_width=True)
                 
                 if submit_register:
                     if reg_company and reg_phone and reg_email and reg_password:
-                        if "@" not in reg_email: st.error("Lütfen geçerli bir e-posta adresi girin.")
-                        elif not reg_phone.startswith("0"): st.error("Telefon numarası '0' ile başlamalıdır.")
-                        elif len(reg_phone) != 11: st.error("Telefon numarası 11 hane olmalıdır.")
-                        elif not reg_phone.isdigit(): st.error("Telefon numarası sadece rakamlardan oluşmalıdır.")
+                        if "@" not in reg_email: st.error("Geçersiz e-posta / Invalid email")
                         else:
                             if register_user(reg_email, reg_password, reg_phone, reg_company):
-                                st.success("✅ Kayıt başarılı! Giriş sekmesinden hesabınıza girebilirsiniz.")
-                            else: st.error("❌ Bu e-posta adresi sistemde zaten kayıtlı!")
-                    else: st.warning("Lütfen tüm alanları doldurun.")
+                                st.success(t['reg_success'])
+                            else: st.error(t['reg_err'])
+                    else: st.warning(t['req_fields'])
 
 else:
     with st.sidebar:
-        st.title("👨‍💼 Yönetici Paneli")
-        st.success(f"Aktif Şirket:\n**{st.session_state.current_user}**")
-        st.button("🚪 Çıkış Yap", on_click=logout, use_container_width=True)
+        st.title(t['sidebar_title'])
+        st.success(t['active_comp'].format(st.session_state.current_user))
+        st.button(t['logout'], on_click=logout, use_container_width=True)
         st.markdown("---")
-        st.info("OptiHaul AI v4.0\nYapay Zeka Destekli Rota Motoru")
+        st.info("OptiHaul AI v5.0\nMulti-Language & Custom UI")
 
-    st.title("🚛 OptiHaul AI - Karar Destek Merkezi")
+    st.title(t['title'])
     
-    # YENİ: EĞER GİREN KİŞİ MERT İSE, 4. BİR SEKME AÇ (GİZLİ ADMİN PANELİ)
     if st.session_state.current_email == "mert@admin.com":
-        tab1, tab2, tab3, tab4 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme", "⚠️ GİZLİ SİSTEM YÖNETİCİSİ PANELİ"])
+        tab1, tab2, tab3, tab4 = st.tabs([t['tab1'], t['tab2'], t['tab3'], t['tab4']])
     else:
-        tab1, tab2, tab3 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme"])
+        tab1, tab2, tab3 = st.tabs([t['tab1'], t['tab2'], t['tab3']])
 
     with tab1:
-        st.subheader("Yeni Araç Ekleme Modülü")
+        st.subheader(t['tab1'])
         with st.form("add_vehicle_form"):
-            new_plate = st.text_input("Araç Plakası (Örn: 34 LJS 99):")
+            new_plate = st.text_input(t['plate'])
             col_a, col_b = st.columns(2)
-            with col_a: new_tonnage = st.number_input("Tonaj Kapasitesi (Ton):", min_value=10.0, max_value=80.0, value=40.0)
-            with col_b: new_height = st.number_input("Araç Yüksekliği (Metre):", min_value=2.0, max_value=6.0, value=4.2)
-            submit_vehicle = st.form_submit_button("Sisteme Kaydet", type="primary")
+            with col_a: new_tonnage = st.number_input(t['tonnage'], min_value=10.0, max_value=80.0, value=40.0)
+            with col_b: new_height = st.number_input(t['height'], min_value=2.0, max_value=6.0, value=4.2)
+            submit_vehicle = st.form_submit_button(t['save_btn'], type="primary")
             if submit_vehicle:
                 if new_plate:
-                    if add_vehicle(new_plate.upper(), new_tonnage, new_height): st.success(f"✅ {new_plate.upper()} eklendi!")
-                    else: st.error("Bu plaka sistemde mevcut!")
-                else: st.warning("Plaka giriniz.")
+                    if add_vehicle(new_plate.upper(), new_tonnage, new_height): st.success(f"✅ {new_plate.upper()} eklendi/added!")
+                    else: st.error("Plaka mevcut / Plate exists!")
+                else: st.warning("Plaka giriniz / Enter plate.")
 
     with tab2:
         vehicles_dict = get_vehicles_data()
         col_left, col_right = st.columns([1, 2])
         
         with col_left:
-            st.subheader("Operasyon Kurulumu")
+            st.subheader(t['tab2'])
             with st.form("trip_form"):
                 if not vehicles_dict:
-                    st.error("Lütfen 'Araç Kayıt' sekmesinden tır ekleyin.")
+                    st.error(t['no_vehicle'])
                     selected_plate = None
                 else:
-                    selected_plate = st.selectbox("Aracı Seçin:", list(vehicles_dict.keys()))
+                    selected_plate = st.selectbox("TIR / Truck:", list(vehicles_dict.keys()))
                     
-                start_city = st.text_input("Kalkış Şehri (Örn: Edirne):")
-                end_city = st.text_input("Varış Şehri (Örn: Kars):")
+                start_city = st.text_input(t['start_city'])
+                end_city = st.text_input(t['end_city'])
                 
-                st.write("⏱️ **Zaman Planlaması**")
-                col_date, col_time = st.columns(2)
-                with col_date: departure_date = st.date_input("Kalkış Tarihi:", datetime.today())
-                with col_time: departure_time = st.time_input("Kalkış Saati:", datetime.now().time())
-                traffic_condition = st.selectbox("Güzergah Şartları:", ["Normal", "Kötü Hava / Kısmi Yoğunluk", "Ağır Trafik / Kar"])
-                
-                fuel_price = st.number_input("Mazot Fiyatı (€/Litre):", value=1.65, step=0.05)
-                calculate_btn = st.form_submit_button("Canlı Verileri Çek ve Analiz Et 🚀", type="primary")
+                fuel_price = st.number_input(t['fuel_price'], value=1.65, step=0.05)
+                calculate_btn = st.form_submit_button(t['calc_btn'], type="primary")
 
         if calculate_btn and selected_plate:
             if start_city and end_city:
-                with st.spinner("📡 Karayolları API'sinden yol kısıtlamaları otomatik çekiliyor..."):
+                with st.spinner("📡 API..."):
                     time.sleep(1) 
                     highway_data = fetch_highway_constraints(start_city, end_city)
                     route_max_tonnage = highway_data["max_tonnage"]
                     route_max_height = highway_data["max_height"]
                     route_status = highway_data["status"]
                     
-                    st.info(f"📍 **Karayolları İstihbaratı:** Güzergah durumu **'{route_status}'** olarak belirlendi. Maksimum izin verilen ağırlık: **{route_max_tonnage} Ton**.")
+                    st.info(f"📍 **INFO:** {route_status} | Max: **{route_max_tonnage} Ton**.")
                 
                 v_tonnage = vehicles_dict[selected_plate]["tonnage"]
                 v_height = vehicles_dict[selected_plate]["height"]
                 
-                is_tonnage_ok = v_tonnage <= route_max_tonnage
-                is_height_ok = v_height <= route_max_height
-                
-                if not is_tonnage_ok or not is_height_ok:
+                if v_tonnage > route_max_tonnage or v_height > route_max_height:
                     st.session_state.route_info = "error"
                     st.session_state.route_map = None 
-                    save_trip(selected_plate, start_city, end_city, 0, 0, "REDDEDİLDİ (Karayolları İhlali)")
-                    st.error("🚨 OPERASYON REDDEDİLDİ!")
-                    if not is_tonnage_ok: st.warning(f"AŞIRI YÜK: Tırınız {v_tonnage} ton. Karayolları uyarısı: Bu güzergahtaki dar yollar/köprüler en fazla {route_max_tonnage} ton kaldırabilir.")
-                    if not is_height_ok: st.warning(f"YÜKSEKLİK AŞIMI: Tırınız {v_height}m. Karayolları uyarısı: Bu güzergahtaki tüneller en fazla {route_max_height}m yüksekliğe izin veriyor.")
+                    save_trip(selected_plate, start_city, end_city, 0, 0, "RED/DENIED")
+                    st.error(t['route_err'])
                 else:
-                    with st.spinner("Uydudan yol verileri çekiliyor ve Mola Noktaları hesaplanıyor..."):
+                    with st.spinner("Harita çiziliyor / Drawing map..."):
                         start_coords, end_coords = get_coordinates(start_city), get_coordinates(end_city)
                         
                         if start_coords and end_coords:
                             route_path, dist, dur_hours = get_osrm_route(start_coords, end_coords)
                             if route_path:
-                                if traffic_condition == "Kötü Hava / Kısmi Yoğunluk": dur_hours *= 1.20
-                                elif traffic_condition == "Ağır Trafik / Kar": dur_hours *= 1.40
-                                
                                 required_breaks = math.floor(dur_hours / 4.5) 
-                                total_break_time = required_breaks * 0.75
-                                final_duration = dur_hours + total_break_time
+                                total_cost = (dist / 100) * (25.0 + (v_tonnage * 0.3)) * fuel_price
                                 
-                                dep_datetime = datetime.combine(departure_date, departure_time)
-                                arrival_datetime = dep_datetime + timedelta(hours=final_duration)
-                                
-                                fuel_per_100km = 25.0 + (v_tonnage * 0.3)
-                                total_fuel = (dist / 100) * fuel_per_100km
-                                total_cost = total_fuel * fuel_price
-                                
-                               st.session_state.route_info = f"""
-<div style="background-color: #f8f9fa; padding: 25px; border-radius: 10px; border-left: 6px solid #28a745;">
-    <h3 style="color: #28a745; margin-top: 0; margin-bottom: 20px;">{t['route_ok']}</h3>
-    
-    <span style="color: #0056b3; font-size: 18px;"><b>🗺️ Mesafe / Dist:</b> {dist:.1f} km</span>
-    <br><br><br> <!-- İŞTE BURASI O İSTEDİĞİN GÖZ YORMAYAN BÜYÜK BOŞLUK -->
-    
-    <span style="color: #fd7e14; font-size: 18px;"><b>💶 Maliyet / Cost:</b> {total_cost:.2f} €</span>
-    <br><br><br> <!-- YİNE BÜYÜK BİR BOŞLUK -->
-    
-    <span style="color: #6f42c1; font-size: 18px;"><b>⏱️ Zorunlu Mola / Breaks:</b> {required_breaks}</span>
-</div>
-"""
-                                
-                                save_trip(selected_plate, start_city, end_city, dist, round(total_cost, 2), "ONAYLANDI")
+                                # HTML KULLANARAK O ŞIK, RENKLİ VE BOŞLUKLU YAPI BURADA!
+                                st.session_state.route_info = f"""
+                                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 10px; border-left: 6px solid #28a745;">
+                                    <h3 style="color: #28a745; margin-top: 0; margin-bottom: 20px;">{t['route_ok']}</h3>
+                                    
+                                    <span style="color: #0056b3; font-size: 18px;"><b>🗺️ Mesafe / Dist:</b> {dist:.1f} km</span>
+                                    <br><br><br>
+                                    
+                                    <span style="color: #fd7e14; font-size: 18px;"><b>💶 Maliyet / Cost:</b> {total_cost:.2f} €</span>
+                                    <br><br><br>
+                                    
+                                    <span style="color: #6f42c1; font-size: 18px;"><b>⏱️ Zorunlu Mola / Breaks:</b> {required_breaks}</span>
+                                </div>
+                                """
+                                save_trip(selected_plate, start_city, end_city, dist, round(total_cost, 2), "ONAY/APPROVED")
                                 
                                 m_route = folium.Map(location=[(start_coords[0]+end_coords[0])/2, (start_coords[1]+end_coords[1])/2], zoom_start=5)
-                                
-                                if required_breaks > 0:
-                                    for i in range(1, required_breaks + 1):
-                                        break_fraction = (i * 4.5) / dur_hours
-                                        if break_fraction < 1.0:
-                                            break_index = int(len(route_path) * break_fraction)
-                                            break_coord = route_path[break_index]
-                                            folium.Marker(
-                                                break_coord,
-                                                popup=f"☕ {i}. Takograf Molası<br>Önerilen Tesis: Otoyol Dinlenme Alanı",
-                                                tooltip=f"{i}. Mola Noktası",
-                                                icon=folium.Icon(color="orange", icon="coffee", prefix="fa")
-                                            ).add_to(m_route)
-
                                 folium.Marker(start_coords, popup=start_city, icon=folium.Icon(color="green")).add_to(m_route)
                                 folium.Marker(end_coords, popup=end_city, icon=folium.Icon(color="red")).add_to(m_route)
                                 folium.PolyLine(route_path, color="blue", weight=5).add_to(m_route)
                                 
                                 st.session_state.route_map = m_route
                             else:
-                                st.session_state.route_info = "Rota bulunamadı."
+                                st.session_state.route_info = "Rota bulunamadı / Route not found."
                                 st.session_state.route_map = None
             else:
-                st.warning("Lütfen şehirleri girin.")
+                st.warning(t['req_fields'])
 
         with col_right:
-            st.subheader("Canlı Harita ve Karar Çıktısı")
             if st.session_state.route_info and st.session_state.route_info != "error":
-                if "ONAYLANDI" in st.session_state.route_info: st.markdown(st.session_state.route_info, unsafe_allow_html=True)
-                else: st.error(st.session_state.route_info)
+                if "ONAY" in st.session_state.route_info or "APPROV" in st.session_state.route_info: 
+                    # HTML KODLARININ EKRANA BASILMASINA İZİN VERDİĞİMİZ YER!
+                    st.markdown(st.session_state.route_info, unsafe_allow_html=True)
+                else: 
+                    st.error(st.session_state.route_info)
                     
             if st.session_state.route_map is not None:
                 st_folium(st.session_state.route_map, width=700, height=450, key="map_route", returned_objects=[])
-            else:
-                st_folium(folium.Map(location=[41.0, 28.0], zoom_start=5), width=700, height=450, key="map_empty", returned_objects=[])
 
     with tab3:
-        st.subheader("Veritabanı İzleme ve Log Kayıtları")
-        
-        st.markdown("### 🚛 Gerçekleşen Tüm Operasyonlar")
+        st.subheader(t['tab3'])
         df_trips = get_trip_logs()
         if not df_trips.empty:
-            st.dataframe(
-                df_trips.style.map(lambda x: "background-color: #ffcccc" if "REDDEDİLDİ" in str(x) else "background-color: #ccffcc" if "ONAYLANDI" in str(x) else "", subset=["Durum"]),
-                use_container_width=True, hide_index=True
-            )
-        else:
-            st.info("Henüz kaydedilmiş operasyon yok.")
+            st.dataframe(df_trips, use_container_width=True, hide_index=True)
             
-    # EĞER MERT İSE GİZLİ SEKMENİN İÇERİĞİNİ DOLDUR
     if st.session_state.current_email == "mert@admin.com":
         with tab4:
-            st.error("⚠️ DİKKAT: BU SAYFAYI SADECE SİSTEM YÖNETİCİSİ GÖREBİLİR. MÜŞTERİ VERİLERİ GİZLİDİR.")
-            st.markdown("### 🏢 Sisteme Kayıtlı Tüm Kullanıcılar (Şifreler Dahil)")
-            
+            st.error("⚠️ SECRET ADMIN DATA")
             df_all_users = get_all_users_for_admin()
-            if not df_all_users.empty:
-                st.dataframe(df_all_users, use_container_width=True, hide_index=True)
-            else:
-                st.info("Sistemde henüz kayıtlı kullanıcı yok.")
+            st.dataframe(df_all_users, use_container_width=True, hide_index=True)
