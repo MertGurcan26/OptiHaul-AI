@@ -14,12 +14,14 @@ st.set_page_config(page_title="OptiHaul AI - Kurumsal Lojistik", layout="wide")
 # --- 1. GÜVENLİK VE HAFIZA ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "current_user" not in st.session_state: st.session_state.current_user = ""
+if "current_email" not in st.session_state: st.session_state.current_email = "" # YENİ: Hangi maille girildiğini tutuyoruz
 if "route_map" not in st.session_state: st.session_state.route_map = None
 if "route_info" not in st.session_state: st.session_state.route_info = ""
 
 def logout():
     st.session_state.logged_in = False
     st.session_state.current_user = ""
+    st.session_state.current_email = ""
     st.session_state.route_map = None
     st.session_state.route_info = ""
 
@@ -30,6 +32,13 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, password TEXT NOT NULL, phone TEXT NOT NULL, company_name TEXT NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS vehicles (id INTEGER PRIMARY KEY AUTOINCREMENT, plate_number TEXT UNIQUE NOT NULL, tonnage REAL NOT NULL, height REAL NOT NULL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS trips (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, plate_number TEXT, start_point TEXT, end_point TEXT, distance_km REAL, cost_euro REAL, status TEXT)''')
+    
+    # YENİ: Süper Admin Hesabını Otomatik Oluştur (Eğer yoksa)
+    try:
+        cursor.execute("INSERT INTO users (email, password, phone, company_name) VALUES (?, ?, ?, ?)", ("mert@admin.com", "Mert1234", "05550000000", "SİSTEM YÖNETİCİSİ (MERT)"))
+    except sqlite3.IntegrityError:
+        pass # Zaten varsa hata verme, geç
+        
     conn.commit()
     conn.close()
 
@@ -87,15 +96,16 @@ def get_trip_logs():
     conn.close()
     return df
 
-def get_users_logs():
+# SADECE ADMİNİN GÖRECEĞİ FULL LİSTE (Şifreler Dahil)
+def get_all_users_for_admin():
     conn = sqlite3.connect('fleet_data.db')
-    df = pd.read_sql_query("SELECT company_name as Şirket, email as 'E-Posta', phone as Telefon FROM users", conn)
+    df = pd.read_sql_query("SELECT company_name as Şirket, email as 'E-Posta', phone as Telefon, password as 'Gizli Şifre' FROM users", conn)
     conn.close()
     return df
 
 # --- 3. HARİTA VE OTOMATİK VERİ ÇEKME MOTORU ---
 def get_coordinates(city_name):
-    geolocator = Nominatim(user_agent="optihaul_ai_v3")
+    geolocator = Nominatim(user_agent="optihaul_ai_v4")
     try:
         location = geolocator.geocode(city_name)
         if location and hasattr(location, 'latitude') and hasattr(location, 'longitude'):
@@ -150,6 +160,7 @@ if not st.session_state.logged_in:
                         if company:
                             st.session_state.logged_in = True
                             st.session_state.current_user = company
+                            st.session_state.current_email = login_email # Sisteme giren maili hafızaya al
                             st.rerun()
                         else: st.error("E-posta veya şifre hatalı!")
                     else: st.warning("Lütfen tüm alanları doldurun.")
@@ -181,10 +192,15 @@ else:
         st.success(f"Aktif Şirket:\n**{st.session_state.current_user}**")
         st.button("🚪 Çıkış Yap", on_click=logout, use_container_width=True)
         st.markdown("---")
-        st.info("OptiHaul AI v3.1\nYapay Zeka Destekli Rota Motoru")
+        st.info("OptiHaul AI v4.0\nYapay Zeka Destekli Rota Motoru")
 
     st.title("🚛 OptiHaul AI - Karar Destek Merkezi")
-    tab1, tab2, tab3 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme"])
+    
+    # YENİ: EĞER GİREN KİŞİ MERT İSE, 4. BİR SEKME AÇ (GİZLİ ADMİN PANELİ)
+    if st.session_state.current_email == "mert@admin.com":
+        tab1, tab2, tab3, tab4 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme", "⚠️ GİZLİ SİSTEM YÖNETİCİSİ PANELİ"])
+    else:
+        tab1, tab2, tab3 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme"])
 
     with tab1:
         st.subheader("Yeni Araç Ekleme Modülü")
@@ -277,63 +293,4 @@ else:
                                 * **Tahmini Varış (ETA):** {arrival_datetime.strftime('%d.%m.%Y - %H:%M')}
                                 * **Yakıt Maliyeti:** {total_cost:.2f} €"""
                                 
-                                save_trip(selected_plate, start_city, end_city, dist, round(total_cost, 2), "ONAYLANDI")
-                                
-                                m_route = folium.Map(location=[(start_coords[0]+end_coords[0])/2, (start_coords[1]+end_coords[1])/2], zoom_start=5)
-                                
-                                if required_breaks > 0:
-                                    for i in range(1, required_breaks + 1):
-                                        break_fraction = (i * 4.5) / dur_hours
-                                        if break_fraction < 1.0:
-                                            break_index = int(len(route_path) * break_fraction)
-                                            break_coord = route_path[break_index]
-                                            folium.Marker(
-                                                break_coord,
-                                                popup=f"☕ {i}. Takograf Molası<br>Önerilen Tesis: Otoyol Dinlenme Alanı",
-                                                tooltip=f"{i}. Mola Noktası",
-                                                icon=folium.Icon(color="orange", icon="coffee", prefix="fa")
-                                            ).add_to(m_route)
-
-                                folium.Marker(start_coords, popup=start_city, icon=folium.Icon(color="green")).add_to(m_route)
-                                folium.Marker(end_coords, popup=end_city, icon=folium.Icon(color="red")).add_to(m_route)
-                                folium.PolyLine(route_path, color="blue", weight=5).add_to(m_route)
-                                
-                                st.session_state.route_map = m_route
-                            else:
-                                st.session_state.route_info = "Rota bulunamadı."
-                                st.session_state.route_map = None
-            else:
-                st.warning("Lütfen şehirleri girin.")
-
-        with col_right:
-            st.subheader("Canlı Harita ve Karar Çıktısı")
-            if st.session_state.route_info and st.session_state.route_info != "error":
-                if "ONAYLANDI" in st.session_state.route_info: st.success(st.session_state.route_info)
-                else: st.error(st.session_state.route_info)
-                    
-            if st.session_state.route_map is not None:
-                st_folium(st.session_state.route_map, width=700, height=450, key="map_route", returned_objects=[])
-            else:
-                st_folium(folium.Map(location=[41.0, 28.0], zoom_start=5), width=700, height=450, key="map_empty", returned_objects=[])
-
-    with tab3:
-        st.subheader("Veritabanı İzleme ve Log Kayıtları")
-        
-        st.markdown("### 🏢 Kayıtlı Şirketler (Müşteri Bilgileri)")
-        df_users = get_users_logs()
-        if not df_users.empty:
-            st.dataframe(df_users, use_container_width=True, hide_index=True)
-        else:
-            st.info("Sistemde henüz kayıtlı bir şirket bulunmuyor.")
-            
-        st.markdown("---")
-        
-        st.markdown("### 🚛 Gerçekleşen Operasyonlar")
-        df_trips = get_trip_logs()
-        if not df_trips.empty:
-            st.dataframe(
-                df_trips.style.map(lambda x: "background-color: #ffcccc" if "REDDEDİLDİ" in str(x) else "background-color: #ccffcc" if "ONAYLANDI" in str(x) else "", subset=["Durum"]),
-                use_container_width=True, hide_index=True
-            )
-        else:
-            st.info("Henüz kaydedilmiş operasyon yok.")
+                                save_trip(selected_plate, start_city
