@@ -293,4 +293,66 @@ else:
                                 * **Tahmini Varış (ETA):** {arrival_datetime.strftime('%d.%m.%Y - %H:%M')}
                                 * **Yakıt Maliyeti:** {total_cost:.2f} €"""
                                 
-                                save_trip(selected_plate, start_city
+                                save_trip(selected_plate, start_city, end_city, dist, round(total_cost, 2), "ONAYLANDI")
+                                
+                                m_route = folium.Map(location=[(start_coords[0]+end_coords[0])/2, (start_coords[1]+end_coords[1])/2], zoom_start=5)
+                                
+                                if required_breaks > 0:
+                                    for i in range(1, required_breaks + 1):
+                                        break_fraction = (i * 4.5) / dur_hours
+                                        if break_fraction < 1.0:
+                                            break_index = int(len(route_path) * break_fraction)
+                                            break_coord = route_path[break_index]
+                                            folium.Marker(
+                                                break_coord,
+                                                popup=f"☕ {i}. Takograf Molası<br>Önerilen Tesis: Otoyol Dinlenme Alanı",
+                                                tooltip=f"{i}. Mola Noktası",
+                                                icon=folium.Icon(color="orange", icon="coffee", prefix="fa")
+                                            ).add_to(m_route)
+
+                                folium.Marker(start_coords, popup=start_city, icon=folium.Icon(color="green")).add_to(m_route)
+                                folium.Marker(end_coords, popup=end_city, icon=folium.Icon(color="red")).add_to(m_route)
+                                folium.PolyLine(route_path, color="blue", weight=5).add_to(m_route)
+                                
+                                st.session_state.route_map = m_route
+                            else:
+                                st.session_state.route_info = "Rota bulunamadı."
+                                st.session_state.route_map = None
+            else:
+                st.warning("Lütfen şehirleri girin.")
+
+        with col_right:
+            st.subheader("Canlı Harita ve Karar Çıktısı")
+            if st.session_state.route_info and st.session_state.route_info != "error":
+                if "ONAYLANDI" in st.session_state.route_info: st.success(st.session_state.route_info)
+                else: st.error(st.session_state.route_info)
+                    
+            if st.session_state.route_map is not None:
+                st_folium(st.session_state.route_map, width=700, height=450, key="map_route", returned_objects=[])
+            else:
+                st_folium(folium.Map(location=[41.0, 28.0], zoom_start=5), width=700, height=450, key="map_empty", returned_objects=[])
+
+    with tab3:
+        st.subheader("Veritabanı İzleme ve Log Kayıtları")
+        
+        st.markdown("### 🚛 Gerçekleşen Tüm Operasyonlar")
+        df_trips = get_trip_logs()
+        if not df_trips.empty:
+            st.dataframe(
+                df_trips.style.map(lambda x: "background-color: #ffcccc" if "REDDEDİLDİ" in str(x) else "background-color: #ccffcc" if "ONAYLANDI" in str(x) else "", subset=["Durum"]),
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("Henüz kaydedilmiş operasyon yok.")
+            
+    # EĞER MERT İSE GİZLİ SEKMENİN İÇERİĞİNİ DOLDUR
+    if st.session_state.current_email == "mert@admin.com":
+        with tab4:
+            st.error("⚠️ DİKKAT: BU SAYFAYI SADECE SİSTEM YÖNETİCİSİ GÖREBİLİR. MÜŞTERİ VERİLERİ GİZLİDİR.")
+            st.markdown("### 🏢 Sisteme Kayıtlı Tüm Kullanıcılar (Şifreler Dahil)")
+            
+            df_all_users = get_all_users_for_admin()
+            if not df_all_users.empty:
+                st.dataframe(df_all_users, use_container_width=True, hide_index=True)
+            else:
+                st.info("Sistemde henüz kayıtlı kullanıcı yok.")
