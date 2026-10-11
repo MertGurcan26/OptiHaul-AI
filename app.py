@@ -86,11 +86,13 @@ def get_trip_logs():
     df = pd.read_sql_query("SELECT date as Tarih, plate_number as Plaka, start_point as Kalkış, end_point as Varış, distance_km as 'Mesafe (km)', cost_euro as 'Maliyet (€)', status as Durum FROM trips ORDER BY date DESC", conn)
     conn.close()
     return df
+
 def get_users_logs():
     conn = sqlite3.connect('fleet_data.db')
     df = pd.read_sql_query("SELECT company_name as Şirket, email as 'E-Posta', phone as Telefon FROM users", conn)
     conn.close()
     return df
+
 # --- 3. HARİTA VE OTOMATİK VERİ ÇEKME MOTORU ---
 def get_coordinates(city_name):
     geolocator = Nominatim(user_agent="optihaul_ai_v3")
@@ -112,22 +114,15 @@ def get_osrm_route(start_coords, end_coords):
     except: pass
     return None, 0, 0
 
-# YENİ: Tam Otomatik Karayolları Uyarı Sistemi (Mock API)
 def fetch_highway_constraints(start_city, end_city):
-    # Dağlık, dar köprüleri olan veya heyelan riski taşıyan şehirlerin listesi
     risky_cities = ["artvin", "bayburt", "hakkari", "şırnak", "tunceli", "rize", "kastamonu", "gümüşhane", "bitlis"]
-    
     start_lower = start_city.lower()
     end_lower = end_city.lower()
-    
-    # Eğer gidilecek rota bu tehlikeli şehirlerden birinden geçiyorsa
     is_risky = any(city in start_lower or city in end_lower for city in risky_cities)
     
     if is_risky:
-        # Tehlikeli / Dar Yollar için kısıtlamalar
         return {"max_tonnage": 25.0, "max_height": 3.8, "status": "Kısıtlı Bölge (Dar Yollar / Düşük Kapasiteli Köprüler)"}
     else:
-        # Normal Türkiye / Avrupa Otoyol Standartları
         return {"max_tonnage": 42.0, "max_height": 4.5, "status": "Standart Otoyol"}
 
 init_db()
@@ -186,7 +181,7 @@ else:
         st.success(f"Aktif Şirket:\n**{st.session_state.current_user}**")
         st.button("🚪 Çıkış Yap", on_click=logout, use_container_width=True)
         st.markdown("---")
-        st.info("OptiHaul AI v3.0\nYapay Zeka Destekli Rota Motoru")
+        st.info("OptiHaul AI v3.1\nYapay Zeka Destekli Rota Motoru")
 
     st.title("🚛 OptiHaul AI - Karar Destek Merkezi")
     tab1, tab2, tab3 = st.tabs(["🚚 Araç Kayıt Paneli", "🗺️ Operasyon ve Sefer Merkezi", "📊 Veritabanı ve Log İzleme"])
@@ -227,17 +222,13 @@ else:
                 with col_time: departure_time = st.time_input("Kalkış Saati:", datetime.now().time())
                 traffic_condition = st.selectbox("Güzergah Şartları:", ["Normal", "Kötü Hava / Kısmi Yoğunluk", "Ağır Trafik / Kar"])
                 
-                # Manuel tonaj girişleri tamamen silindi. Sadece yakıt fiyatı kaldı.
                 fuel_price = st.number_input("Mazot Fiyatı (€/Litre):", value=1.65, step=0.05)
                 calculate_btn = st.form_submit_button("Canlı Verileri Çek ve Analiz Et 🚀", type="primary")
 
         if calculate_btn and selected_plate:
             if start_city and end_city:
                 with st.spinner("📡 Karayolları API'sinden yol kısıtlamaları otomatik çekiliyor..."):
-                    # Sistemi 1 saniye bekleterek gerçek API bağlantısı simülasyonu yapıyoruz
                     time.sleep(1) 
-                    
-                    # Otomatik Veri Çekme Motoru Devrede!
                     highway_data = fetch_highway_constraints(start_city, end_city)
                     route_max_tonnage = highway_data["max_tonnage"]
                     route_max_height = highway_data["max_height"]
@@ -325,7 +316,7 @@ else:
             else:
                 st_folium(folium.Map(location=[41.0, 28.0], zoom_start=5), width=700, height=450, key="map_empty", returned_objects=[])
 
-   with tab3:
+    with tab3:
         st.subheader("Veritabanı İzleme ve Log Kayıtları")
         
         st.markdown("### 🏢 Kayıtlı Şirketler (Müşteri Bilgileri)")
